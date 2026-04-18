@@ -49,11 +49,6 @@ def get_data() -> tuple[dict, dict, dict]:
     customers = load_json("customers.json")
     orders    = load_json("orders.json")
     products  = load_json("products.json")
-    print(
-        f"[tools] get_data() -> {len(customers)} customers, "
-        f"{len(orders)} orders, {len(products)} products  "
-        f"(from {DATA_DIR})"
-    )
     return customers, orders, products
 
 
@@ -66,7 +61,6 @@ def get_knowledge_base() -> str:
         raise FileNotFoundError(f"knowledge-base.md NOT FOUND at {kb_path}")
     with open(kb_path, "r", encoding="utf-8") as f:
         content = f.read()
-    print(f"[tools] get_knowledge_base() → {len(content)} chars")
     return content
 
 
@@ -104,11 +98,9 @@ async def get_customer(email: str) -> dict[str, Any]:
         raise ToolTimeout(f"get_customer timed out for {email!r}")
 
     customers, _, _ = get_data()
-    print(f"[tools] get_customer({email!r}) — searching {len(customers)} customers")
 
     customer = customers.get(email)
     if customer is None:
-        print(f"[tools] get_customer({email!r}) - Not found. Returning fallback.")
         return {"status": "error", "customer": {"email": email, "name": "Unknown User", "tier": "standard", "id": "UNKNOWN"}}
     return {"status": "ok", "customer": customer}
 
@@ -120,11 +112,9 @@ async def get_order(order_id: str) -> dict[str, Any]:
         raise ToolTimeout(f"get_order timed out for {order_id!r}")
 
     _, orders, _ = get_data()
-    print(f"[tools] get_order({order_id!r}) — searching {len(orders)} orders")
 
     order = orders.get(order_id)
     if order is None:
-        print(f"[tools] get_order({order_id!r}) - Not found. Returning structured error.")
         return {"status": "error", "error": f"Order {order_id!r} not found", "order": {"status": "not_found", "product": "Unknown", "amount": 0.0, "order_date": "1970-01-01T00:00:00Z"}}
     return {"status": "ok", "order": order}
 
@@ -200,7 +190,7 @@ async def send_reply(ticket_id: str, message: str) -> dict[str, Any]:
     }
 
 
-async def escalate(ticket_id: str, summary: str) -> dict[str, Any]:
+async def escalate(ticket_id: str, reason: str, summary: str) -> dict[str, Any]:
     """Escalate a ticket to the human support team with a structured summary."""
     await _latency(0.2, 0.1)
     if _transient_fail(0.05):
@@ -210,6 +200,7 @@ async def escalate(ticket_id: str, summary: str) -> dict[str, Any]:
         "escalation_id":   f"ESC-{uuid.uuid4().hex[:6].upper()}",
         "ticket_id":       ticket_id,
         "assigned_to":     "Human Support Team",
+        "reason":          reason,
         "summary_preview": summary[:120] + ("..." if len(summary) > 120 else ""),
         "escalated_at":    datetime.now().isoformat(),
     }

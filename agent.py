@@ -20,12 +20,44 @@ Behaviour contract
 
 import asyncio
 import time
+import random
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Awaitable
 
 from classifier import classify_ticket, ClassificationResult
 import tools as T
+
+def _get_missing_order_msg(name: str, context: str) -> tuple[str, str]:
+    if context == "refund":
+        pool = [
+            "We couldn't find your order ID. Please share it so we can assist you with your refund.",
+            "To proceed with your refund, we need your order number. Could you provide it?",
+            "Your refund request is valid, but we need an order ID to continue."
+        ]
+    elif context == "order_issue":
+        pool = [
+            "We couldn't find your order ID. Please share it so we can assist you with order tracking.",
+            "To proceed with your order tracking, we need your order number. Could you provide it?",
+            "Your request is valid, but we need an order ID to track your order."
+        ]
+    elif context == "product_issue":
+        pool = [
+            "We couldn't find your order ID. Please share it so we can assist you with your damaged product.",
+            "To proceed with a replacement or refund, we need your order number. Could you provide it?",
+            "Your request regarding the product issue is valid, but we need an order ID to continue."
+        ]
+    else:
+        pool = [
+            "We couldn't find your order ID. Please share it so we can assist you.",
+            "To proceed, we need your order number. Could you provide it?",
+            "Your request is valid, but we need an order ID to continue."
+        ]
+    
+    val = random.choice(pool)
+    msg = f"Dear {name},\n\n{val}\n\nSupport Team"
+    return msg, val
 
 
 MAX_RETRIES: int = 2
@@ -276,7 +308,8 @@ async def _enforce_min_tool_calls(
 async def _run_escalate(
     ticket_id: str,
     summary: str,
-    reason: str,
+    audit_reason: str,
+    escalation_reason: str,
     confidence: float,
     audit: list[AuditEntry],
     step_name: str = "escalate",
@@ -289,19 +322,19 @@ async def _run_escalate(
         audit,
         ticket_id=ticket_id,
         step_name=f"decide.{step_name}",
-        reason=reason,
+        reason=audit_reason,
         confidence=confidence,
     )
     try:
         resp = await _invoke_tool(
-            T.escalate, ticket_id, summary,
+            T.escalate, ticket_id, escalation_reason, summary,
             ticket_id=ticket_id,
             step_name=step_name,
-            reason=reason,
+            reason=audit_reason,
             confidence=confidence,
             audit=audit,
         )
-        return f"Escalated — ID={resp['escalation_id']}"
+        return f"Escalated due to {escalation_reason} — ID={resp['escalation_id']}"
     except Exception as exc:
         return f"Escalation failed: {exc}"
 
@@ -331,6 +364,13 @@ async def _handle_refund(
         reason="Fetch customer profile to confirm identity and account standing.")
     customer = cust_resp["customer"]
 
+    if not order_id:
+        _record_decision(audit, ticket_id=tid, step_name="decide.missing_order_id", confidence=conf,
+            reason="Order ID is missing. Cannot verify purchase or eligibility. Requesting details.")
+        msg, val = _get_missing_order_msg(customer['name'], "refund")
+        await _invoke_tool(T.send_reply, tid, msg, ticket_id=tid, step_name="send_reply.missing_order", confidence=conf, audit=audit, reason="Ask customer for missing order ID.")
+        return "resolved", val
+
     _record_decision(audit, ticket_id=tid, step_name="decide.get_order", confidence=conf,
         reason=(f"Customer {customer['name']} (tier={customer['tier']}) verified. "
                 f"Fetching order {order_id} to confirm product, amount, and purchase date "
@@ -339,6 +379,12 @@ async def _handle_refund(
         T.get_order, order_id,
         ticket_id=tid, step_name="get_order", confidence=conf, audit=audit,
         reason=f"Retrieve order {order_id} to validate ownership and obtain refund amount.")
+
+    if order_resp.get("status") == "error":
+        msg = f"Dear {customer['name']},\n\nWe couldn't locate your order. Please verify your order ID.\n\nSupport Team"
+        await _invoke_tool(T.send_reply, tid, msg, ticket_id=tid, step_name="send_reply.invalid_order", confidence=conf, audit=audit, reason="Order not found. Requesting verification.")
+        return "resolved", "We couldn't locate your order. Please verify your order ID."
+
     order = order_resp["order"]
 
     _record_decision(audit, ticket_id=tid, step_name="decide.check_eligibility", confidence=conf,
@@ -416,6 +462,13 @@ async def _handle_order_issue(
         reason="Validate the email belongs to an active customer account.")
     customer = cust_resp["customer"]
 
+    if not order_id:
+        _record_decision(audit, ticket_id=tid, step_name="decide.missing_order_id", confidence=conf,
+            reason="Order ID is missing. Cannot retrieve live carrier and status data. Requesting details.")
+        msg, val = _get_missing_order_msg(customer['name'], "order_issue")
+        await _invoke_tool(T.send_reply, tid, msg, ticket_id=tid, step_name="send_reply.missing_order", confidence=conf, audit=audit, reason="Ask customer for missing order ID.")
+        return "resolved", val
+
     _record_decision(audit, ticket_id=tid, step_name="decide.get_order", confidence=conf,
         reason=(f"Identity confirmed for {customer['name']}. "
                 f"Fetching order {order_id} to retrieve live carrier and status data."))
@@ -423,6 +476,12 @@ async def _handle_order_issue(
         T.get_order, order_id,
         ticket_id=tid, step_name="get_order", confidence=conf, audit=audit,
         reason=f"Retrieve current status of order {order_id} for an accurate customer update.")
+    
+    if order_resp.get("status") == "error":
+        msg = f"Dear {customer['name']},\n\nWe couldn't locate your order. Please verify your order ID.\n\nSupport Team"
+        await _invoke_tool(T.send_reply, tid, msg, ticket_id=tid, step_name="send_reply.invalid_order", confidence=conf, audit=audit, reason="Order not found. Requesting verification.")
+        return "resolved", "We couldn't locate your order. Please verify your order ID."
+
     order = order_resp["order"]
 
     status_phrases = {
@@ -479,6 +538,13 @@ async def _handle_product_issue(
         reason="Verify identity to prevent fraudulent product-defect claims.")
     customer = cust_resp["customer"]
 
+    if not order_id:
+        _record_decision(audit, ticket_id=tid, step_name="decide.missing_order_id", confidence=conf,
+            reason="Order ID is missing. Cannot establish product, amount, and date for policy evaluation.")
+        msg, val = _get_missing_order_msg(customer['name'], "product_issue")
+        await _invoke_tool(T.send_reply, tid, msg, ticket_id=tid, step_name="send_reply.missing_order", confidence=conf, audit=audit, reason="Ask customer for missing order ID.")
+        return "resolved", val
+
     _record_decision(audit, ticket_id=tid, step_name="decide.get_order", confidence=conf,
         reason=(f"Customer {customer['name']} (tier={customer['tier']}) confirmed. "
                 f"Fetching order {order_id} to establish product, amount, and date for policy evaluation."))
@@ -486,6 +552,12 @@ async def _handle_product_issue(
         T.get_order, order_id,
         ticket_id=tid, step_name="get_order", confidence=conf, audit=audit,
         reason=f"Retrieve order {order_id} to confirm it contains the reported defective item.")
+
+    if order_resp.get("status") == "error":
+        msg = f"Dear {customer['name']},\n\nWe couldn't locate your order. Please verify your order ID.\n\nSupport Team"
+        await _invoke_tool(T.send_reply, tid, msg, ticket_id=tid, step_name="send_reply.invalid_order", confidence=conf, audit=audit, reason="Order not found. Requesting verification.")
+        return "resolved", "We couldn't locate your order. Please verify your order ID."
+
     order = order_resp["order"]
 
     _record_decision(audit, ticket_id=tid, step_name="decide.check_eligibility", confidence=conf,
@@ -647,6 +719,25 @@ async def process_ticket(ticket: dict) -> TicketResult:
         },
     )
 
+    if not ticket.get("order_id"):
+        body_text = ticket.get("body", "")
+        match1 = re.search(r'(?i)\b(ORD-\d+)\b', body_text)
+        match2 = re.search(r'(?i)order\s+number\s+(?:is\s+)?#?(\d+)', body_text)
+        
+        extracted_id = None
+        if match1:
+            extracted_id = match1.group(1).upper()
+        elif match2:
+            extracted_id = f"ORD-{match2.group(1)}"
+            
+        if extracted_id:
+            ticket["order_id"] = extracted_id
+            _record_decision(
+                audit, ticket_id=tid, step_name="extract_order_id", confidence=1.0,
+                reason=f"Regex extracted order_id '{extracted_id}' from the ticket body.",
+                detail={"extracted_order_id": extracted_id}
+            )
+
     clf = classify_ticket(ticket["subject"], ticket["body"])
     _record_decision(
         audit, ticket_id=tid, step_name="classification_result", confidence=clf.confidence,
@@ -677,10 +768,11 @@ async def process_ticket(ticket: dict) -> TicketResult:
         await _enforce_min_tool_calls(ticket, clf, audit)
         resolution = await _run_escalate(
             tid, summary,
-            reason=(
+            audit_reason=(
                 f"Automatic escalation: confidence {clf.confidence:.3f} "
                 f"< threshold {ESCALATION_THRESHOLD}. Human review required."
             ),
+            escalation_reason="low confidence in classification",
             confidence=clf.confidence,
             audit=audit,
             step_name="escalate.low_confidence",
@@ -729,10 +821,11 @@ async def process_ticket(ticket: dict) -> TicketResult:
         await _enforce_min_tool_calls(ticket, clf, audit)
         resolution = await _run_escalate(
             tid, summary,
-            reason=(
+            audit_reason=(
                 f"Unrecoverable tool failure after {MAX_RETRIES} retries: {exc}. "
                 "Human intervention required."
             ),
+            escalation_reason="multiple tool failures",
             confidence=clf.confidence,
             audit=audit,
             step_name="escalate.tool_failure",
