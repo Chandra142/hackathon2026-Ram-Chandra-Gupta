@@ -19,55 +19,33 @@ A Python-based autonomous agent that triages and resolves customer support ticke
 
 - **Language:** Python 3.11+
 - **Orchestration / LLM Loop:** Custom ReAct loop integrated via `asyncio`
-- **Libraries:**  
-  - Vanilla Python (no heavy frameworks)
-  - `rich` for CLI formatting and tables
-  - `asyncio` for high-throughput concurrency
+- **Libraries:** Vanilla Python Standard Library Only (Zero external dependencies!)
 - **Classification Engine:** Pure-Python regex heuristics (0ms latency, fully local)
 
 ---
 
-## 🚀 Setup Instructions
+## 🚀 Setup & Execution
 
-1. **Clone the repository:**
+Because this architecture was engineered with **100% native Python** and zero external bloat, it runs instantly out-of-the-box without requiring a virtual environment or dependency installations!
+
+1. **Clone the project:**
    ```bash
-   git clone https://github.com/yourusername/hackathon2026-[your-name].git
-   cd hackathon2026-[your-name]
+   git clone https://github.com/Chandra142/hackathon2026-Ram-Chandra-Gupta.git
+   cd hackathon2026-Ram-Chandra-Gupta
    ```
 
-2. **Set up a Virtual Environment (Recommended):**
+2. **Run the Autonomous Agent:**
+   *(Wait for it to autonomously process all 20 tickets simultaneously.)*
    ```bash
-   python -m venv venv
-   # Windows:
-   venv\Scripts\activate
-   # Mac/Linux:
-   source venv/bin/activate
+   python main.py
    ```
 
-3. **Install Dependencies:**
+3. **View the Real-Time Telemetry Audit:**
    ```bash
-   pip install -r requirements.txt
+   python main.py --show-audit
    ```
 
 
-
----
-
-## 🏃 How to Run It
-
-### Command Line Interface (CLI)
-
-To run the agent and generate a clean final summary output:
-```bash
-python main.py
-```
-
-To view the real-time step-by-step reasoning audit:
-```bash
-python main.py --show-audit
-```
-
----
 
 ## 📁 Project Structure
 
