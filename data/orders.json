@@ -1,0 +1,119 @@
+{
+  "ORD-1001": {
+    "id": "ORD-1001",
+    "customer_email": "alice@example.com",
+    "product": "Wireless Headphones",
+    "amount": 149.99,
+    "status": "delivered",
+    "order_date": "2026-04-12T16:13:08.864429",
+    "delivered_date": "2026-04-15T16:13:08.864429"
+  },
+  "ORD-1002": {
+    "id": "ORD-1002",
+    "customer_email": "bob@example.com",
+    "product": "Mechanical Keyboard",
+    "amount": 89.5,
+    "status": "shipped",
+    "order_date": "2026-04-14T16:13:08.864429",
+    "delivered_date": null
+  },
+  "ORD-1003": {
+    "id": "ORD-1003",
+    "customer_email": "carol@example.com",
+    "product": "USB-C Hub",
+    "amount": 39.99,
+    "status": "delivered",
+    "order_date": "2026-03-03T16:13:08.864429",
+    "delivered_date": "2026-03-06T16:13:08.864429"
+  },
+  "ORD-1004": {
+    "id": "ORD-1004",
+    "customer_email": "dave@example.com",
+    "product": "Ergonomic Mouse",
+    "amount": 59.99,
+    "status": "processing",
+    "order_date": "2026-04-16T16:13:08.864429",
+    "delivered_date": null
+  },
+  "ORD-1005": {
+    "id": "ORD-1005",
+    "customer_email": "eve@example.com",
+    "product": "Monitor Stand",
+    "amount": 75.0,
+    "status": "delivered",
+    "order_date": "2026-04-07T16:13:08.864429",
+    "delivered_date": "2026-04-10T16:13:08.864429"
+  },
+  "ORD-1006": {
+    "id": "ORD-1006",
+    "customer_email": "frank@example.com",
+    "product": "Laptop Stand",
+    "amount": 199.99,
+    "status": "delivered",
+    "order_date": "2026-04-09T16:13:08.864429",
+    "delivered_date": "2026-04-12T16:13:08.864429"
+  },
+  "ORD-1007": {
+    "id": "ORD-1007",
+    "customer_email": "grace@example.com",
+    "product": "Phone Case",
+    "amount": 45.0,
+    "status": "shipped",
+    "order_date": "2026-04-12T16:13:08.864429",
+    "delivered_date": null
+  },
+  "ORD-1008": {
+    "id": "ORD-1008",
+    "customer_email": "henry@example.com",
+    "product": "Smartwatch",
+    "amount": 299.99,
+    "status": "delivered",
+    "order_date": "2026-03-28T16:13:08.864429",
+    "delivered_date": "2026-03-31T16:13:08.864429"
+  },
+  "ORD-1009": {
+    "id": "ORD-1009",
+    "customer_email": "iris@example.com",
+    "product": "Desk Lamp",
+    "amount": 89.0,
+    "status": "processing",
+    "order_date": "2026-04-15T16:13:08.864429",
+    "delivered_date": null
+  },
+  "ORD-1010": {
+    "id": "ORD-1010",
+    "customer_email": "jack@example.com",
+    "product": "Cable Set",
+    "amount": 55.0,
+    "status": "delivered",
+    "order_date": "2026-04-05T16:13:08.864429",
+    "delivered_date": "2026-04-08T16:13:08.864429"
+  },
+  "ORD-1011": {
+    "id": "ORD-1011",
+    "customer_email": "kate@example.com",
+    "product": "Gaming Mouse",
+    "amount": 129.0,
+    "status": "shipped",
+    "order_date": "2026-04-10T16:13:08.864429",
+    "delivered_date": null
+  },
+  "ORD-1012": {
+    "id": "ORD-1012",
+    "customer_email": "leo@example.com",
+    "product": "Bluetooth Speaker",
+    "amount": 79.99,
+    "status": "delivered",
+    "order_date": "2026-04-14T16:13:08.864429",
+    "delivered_date": "2026-04-16T16:13:08.864429"
+  },
+  "ORD-1013": {
+    "id": "ORD-1013",
+    "customer_email": "mia@example.com",
+    "product": "Yoga Mat",
+    "amount": 35.0,
+    "status": "delivered",
+    "order_date": "2026-03-13T16:13:08.864429",
+    "delivered_date": "2026-03-16T16:13:08.864429"
+  }
+}

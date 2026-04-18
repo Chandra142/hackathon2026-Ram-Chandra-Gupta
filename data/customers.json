@@ -1,0 +1,93 @@
+{
+  "alice@example.com": {
+    "id": "C-001",
+    "name": "Alice Johnson",
+    "tier": "gold",
+    "email": "alice@example.com",
+    "account_age_days": 730
+  },
+  "bob@example.com": {
+    "id": "C-002",
+    "name": "Bob Smith",
+    "tier": "silver",
+    "email": "bob@example.com",
+    "account_age_days": 120
+  },
+  "carol@example.com": {
+    "id": "C-003",
+    "name": "Carol White",
+    "tier": "bronze",
+    "email": "carol@example.com",
+    "account_age_days": 30
+  },
+  "dave@example.com": {
+    "id": "C-004",
+    "name": "Dave Brown",
+    "tier": "gold",
+    "email": "dave@example.com",
+    "account_age_days": 900
+  },
+  "eve@example.com": {
+    "id": "C-005",
+    "name": "Eve Davis",
+    "tier": "silver",
+    "email": "eve@example.com",
+    "account_age_days": 60
+  },
+  "frank@example.com": {
+    "id": "C-006",
+    "name": "Frank Miller",
+    "tier": "gold",
+    "email": "frank@example.com",
+    "account_age_days": 580
+  },
+  "grace@example.com": {
+    "id": "C-007",
+    "name": "Grace Lee",
+    "tier": "silver",
+    "email": "grace@example.com",
+    "account_age_days": 200
+  },
+  "henry@example.com": {
+    "id": "C-008",
+    "name": "Henry Wilson",
+    "tier": "bronze",
+    "email": "henry@example.com",
+    "account_age_days": 15
+  },
+  "iris@example.com": {
+    "id": "C-009",
+    "name": "Iris Chen",
+    "tier": "gold",
+    "email": "iris@example.com",
+    "account_age_days": 1100
+  },
+  "jack@example.com": {
+    "id": "C-010",
+    "name": "Jack Taylor",
+    "tier": "silver",
+    "email": "jack@example.com",
+    "account_age_days": 90
+  },
+  "kate@example.com": {
+    "id": "C-011",
+    "name": "Kate Robinson",
+    "tier": "bronze",
+    "email": "kate@example.com",
+    "account_age_days": 45
+  },
+  "leo@example.com": {
+    "id": "C-012",
+    "name": "Leo Martinez",
+    "tier": "silver",
+    "email": "leo@example.com",
+    "account_age_days": 300
+  },
+  "mia@example.com": {
+    "id": "C-013",
+    "name": "Mia Thompson",
+    "tier": "gold",
+    "email": "mia@example.com",
+    "account_age_days": 450
+  }
+}
