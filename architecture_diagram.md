@@ -1,40 +1,47 @@
-## Agentic Support Architecture
+# Agentic Support Architecture
 
 ```mermaid
 graph TD
-    A[Mock Tickets .json] -->|Batch Load| B(Main Async Worker)
-    B -->|Asyncio.gather| C{Autonomous Agent Loop}
+    A[Mock Tickets .json] --> B(Async Queue Worker)
+    B --> C{Autonomous Agent Loop}
     
-    C -->|Classify| D[Weighted Heuristic Engine]
-    D -->|Confidence & Type| C
+    C --> D[Weighted Heuristic Engine]
+    D --> E{Decision Gate}
     
-    C -- Tool Orchestration --> E{Tool Executor}
-    E --> F[get_customer]
-    E --> G[get_order]
-    E --> H[list_customer_orders]
-    E --> I[check_eligibility]
-    E --> J[issue_refund]
-    E --> K[get_knowledge_base]
-    E --> L[send_reply]
+    E -->|Confidence Low| S[Escalation Path]
+    E -->|Confidence High| F{Strategy Selector}
     
-    F & G & H & I & J & K & L -->|Error Check| M{Retry Logic}
-    M -->|Retriable Fail| N[Exponential Backoff]
-    N --> E
-    M -->|Success / Unrecoverable| C
+    F --> G[Tool Orchestrator]
+    F --> H[Clarification Path]
+    H -->|send_reply| J
+    F --> I[Discovery Path]
+    I -->|list_orders| G
+
+    G --> J{Tool Executor}
+    subgraph Tool_Palette [Tool Palette]
+        J --> T1[get_customer]
+        J --> T2[get_order]
+        J --> T3[get_product]
+        J --> T4[issue_refund]
+        J --> T5[send_reply]
+    end
+
+    T1 & T2 & T3 & T4 & T5 --> K{Status Check}
     
-    C -- Logic Branching --> O{Branch Handler}
-    O -->|Missing Order ID| P[Smart Order Lookup]
-    P -->|Found| G
-    O -->|Policy Inquiry| Q[Knowledge Base Search]
-    Q --> L
-    O -->|Criteria Met| R[Status: RESOLVED]
+    K -->|Transient Fail| L[Backoff & Retry]
+    L --> G
     
-    C -- Guardrails --> S{Escalation Gate}
-    S -->|Reason: low_confidence| T[Status: ESCALATED]
-    S -->|Reason: missing_critical_data| T
-    S -->|Reason: unrecoverable_failure| T
-    S -->|Reason: manual_fulfillment| T
+    K -->|Permanent Fail| S
     
-    R & T --> U[Emit Final Audit Log & Results.json]
-    U --> V((CLI Real-time Output))
+    K -->|Step OK| M{Objective Met?}
+    M -->|No| G
+    M -->|Yes| N{Quality Gate}
+    
+    N -->|Steps < 3| O[Supplement Info]
+    O --> G
+    N -->|Steps >= 3| P[Status: RESOLVED]
+    
+    S --> Q[Status: ESCALATED]
+    
+    P & Q --> R[results.json & audit_log.json]
 ```
