@@ -139,6 +139,19 @@ async def get_order(order_id: str) -> dict[str, Any]:
     return {"status": "ok", "order": order}
 
 
+async def get_product(product_name: str) -> dict[str, Any]:
+    """Return product metadata and warranty information."""
+    await _latency(0.1, 0.1)
+    if _transient_fail(0.05):
+        raise ToolTimeout(f"get_product timed out for {product_name!r}")
+
+    _, _, products = get_data()
+    product = products.get(product_name)
+    if product is None:
+        return {"status": "error", "error": f"Product {product_name!r} not found"}
+    return {"status": "ok", "product": product}
+
+
 async def check_refund_eligibility(order_id: str) -> dict[str, Any]:
     """Evaluate whether an order is eligible for a refund under current policy."""
     await _latency(0.3, 0.2)

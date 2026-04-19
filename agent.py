@@ -698,6 +698,15 @@ async def _handle_product_issue(
         )
 
     order = order_resp["order"]
+    product_name = order["product"]
+
+    _record_decision(audit, ticket_id=tid, step_name="decide.get_product", confidence=conf,
+        reason=f"Order {order_id} found. Fetching technical metadata for '{product_name}' to verify warranty and category.")
+    
+    prod_resp = await _invoke_tool(
+        T.get_product, product_name,
+        ticket_id=tid, step_name="get_product", confidence=conf, audit=audit,
+        reason=f"Retrieve technical specifications for '{product_name}'.")
 
     _record_decision(audit, ticket_id=tid, step_name="decide.check_eligibility", confidence=conf,
         reason=(f"Order confirms '{order['product']}' (${order['amount']:.2f}, "
