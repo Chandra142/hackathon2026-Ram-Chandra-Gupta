@@ -244,6 +244,32 @@ async def _invoke_tool(
     raise last_exc  # type: ignore[misc]
 
 
+async def _get_active_order(
+    email: str,
+    ticket_id: str,
+    confidence: float,
+    audit: list[AuditEntry]
+) -> str | None:
+    """
+    Attempt to autonomously find the most relevant order for a customer
+    by listing their recent orders and picking the latest one.
+    """
+    resp = await _invoke_tool(
+        T.list_customer_orders, email,
+        ticket_id=ticket_id, step_name="list_customer_orders", confidence=confidence, audit=audit,
+        reason="Order ID missing. Attempting to identify relevant order from customer history."
+    )
+    orders = resp.get("orders", [])
+    if orders:
+        best_order_id = orders[0]["order_id"]
+        _record_decision(
+            audit, ticket_id=ticket_id, step_name="decide.resolved_order_id", confidence=confidence,
+            reason=f"Found {len(orders)} order(s). Selecting most recent order {best_order_id} for processing."
+        )
+        return best_order_id
+    return None
+
+
 async def _enforce_min_tool_calls(
     ticket: dict,
     clf: ClassificationResult,
@@ -362,14 +388,40 @@ async def _handle_refund(
         T.get_customer, email,
         ticket_id=tid, step_name="get_customer", confidence=conf, audit=audit,
         reason="Fetch customer profile to confirm identity and account standing.")
+    if cust_resp["status"] == "error":
+        summary = (
+            f"UNKNOWN CUSTOMER [{tid}]\n"
+            f"Email   : {email}\n"
+            f"Subject : {ticket['subject']}\n"
+            f"The email is not registered in our database. Cannot verify identity for refund."
+        )
+        return "escalated", await _run_escalate(
+            tid, summary,
+            audit_reason="Cannot verify identity for financial action. Customer email not found.",
+            escalation_reason="missing critical data",
+            confidence=conf, audit=audit, step_name="escalate.unknown_customer"
+        )
+
     customer = cust_resp["customer"]
 
     if not order_id:
         _record_decision(audit, ticket_id=tid, step_name="decide.missing_order_id", confidence=conf,
-            reason="Order ID is missing. Cannot verify purchase or eligibility. Requesting details.")
-        msg, val = _get_missing_order_msg(customer['name'], "refund")
-        await _invoke_tool(T.send_reply, tid, msg, ticket_id=tid, step_name="send_reply.missing_order", confidence=conf, audit=audit, reason="Ask customer for missing order ID.")
-        return "resolved", val
+            reason="Order ID is missing. Attempting autonomous lookup before escalating.")
+        order_id = await _get_active_order(email, tid, conf, audit)
+
+    if not order_id:
+        summary = (
+            f"MISSING ORDER ID [{tid}]\n"
+            f"Customer: {customer['name']} ({email})\n"
+            f"Subject : {ticket['subject']}\n"
+            f"Refund requested but no order ID provided and none found in history."
+        )
+        return "escalated", await _run_escalate(
+            tid, summary,
+            audit_reason="Refund request lacks order ID and customer has no order history. Cannot proceed.",
+            escalation_reason="missing critical data",
+            confidence=conf, audit=audit, step_name="escalate.missing_order_id"
+        )
 
     _record_decision(audit, ticket_id=tid, step_name="decide.get_order", confidence=conf,
         reason=(f"Customer {customer['name']} (tier={customer['tier']}) verified. "
@@ -381,9 +433,18 @@ async def _handle_refund(
         reason=f"Retrieve order {order_id} to validate ownership and obtain refund amount.")
 
     if order_resp.get("status") == "error":
-        msg = f"Dear {customer['name']},\n\nWe couldn't locate your order. Please verify your order ID.\n\nSupport Team"
-        await _invoke_tool(T.send_reply, tid, msg, ticket_id=tid, step_name="send_reply.invalid_order", confidence=conf, audit=audit, reason="Order not found. Requesting verification.")
-        return "resolved", "We couldn't locate your order. Please verify your order ID."
+        summary = (
+            f"INVALID ORDER ID [{tid}]\n"
+            f"Customer : {customer['name']} ({email})\n"
+            f"Order ID : {order_id}\n"
+            f"The order ID provided for this request was not found in the database. Manual verification required."
+        )
+        return "escalated", await _run_escalate(
+            tid, summary,
+            audit_reason=f"Order {order_id} not found. Cannot verify eligibility/status.",
+            escalation_reason="missing critical data",
+            confidence=conf, audit=audit, step_name="escalate.invalid_order"
+        )
 
     order = order_resp["order"]
 
@@ -460,11 +521,30 @@ async def _handle_order_issue(
         T.get_customer, email,
         ticket_id=tid, step_name="get_customer", confidence=conf, audit=audit,
         reason="Validate the email belongs to an active customer account.")
+    if cust_resp["status"] == "error":
+        summary = (
+            f"UNKNOWN CUSTOMER [{tid}]\n"
+            f"Email   : {email}\n"
+            f"Subject : {ticket['subject']}\n"
+            f"Customer email not found. Cannot retrieve order status without identity verification."
+        )
+        return "escalated", await _run_escalate(
+            tid, summary,
+            audit_reason="Customer email not found. Cannot retrieve order history.",
+            escalation_reason="missing critical data",
+            confidence=conf, audit=audit, step_name="escalate.unknown_customer"
+        )
+
     customer = cust_resp["customer"]
 
     if not order_id:
         _record_decision(audit, ticket_id=tid, step_name="decide.missing_order_id", confidence=conf,
-            reason="Order ID is missing. Cannot retrieve live carrier and status data. Requesting details.")
+            reason="Order ID is missing. Attempting autonomous lookup.")
+        order_id = await _get_active_order(email, tid, conf, audit)
+
+    if not order_id:
+        _record_decision(audit, ticket_id=tid, step_name="decide.missing_order_id.ask", confidence=conf,
+            reason="No order ID provided or found. Asking customer for details.")
         msg, val = _get_missing_order_msg(customer['name'], "order_issue")
         await _invoke_tool(T.send_reply, tid, msg, ticket_id=tid, step_name="send_reply.missing_order", confidence=conf, audit=audit, reason="Ask customer for missing order ID.")
         return "resolved", val
@@ -478,9 +558,18 @@ async def _handle_order_issue(
         reason=f"Retrieve current status of order {order_id} for an accurate customer update.")
     
     if order_resp.get("status") == "error":
-        msg = f"Dear {customer['name']},\n\nWe couldn't locate your order. Please verify your order ID.\n\nSupport Team"
-        await _invoke_tool(T.send_reply, tid, msg, ticket_id=tid, step_name="send_reply.invalid_order", confidence=conf, audit=audit, reason="Order not found. Requesting verification.")
-        return "resolved", "We couldn't locate your order. Please verify your order ID."
+        summary = (
+            f"INVALID ORDER ID [{tid}]\n"
+            f"Customer : {customer['name']} ({email})\n"
+            f"Order ID : {order_id}\n"
+            f"The order ID provided for this request was not found in the database. Manual verification required."
+        )
+        return "escalated", await _run_escalate(
+            tid, summary,
+            audit_reason=f"Order {order_id} not found. Cannot verify eligibility/status.",
+            escalation_reason="missing critical data",
+            confidence=conf, audit=audit, step_name="escalate.invalid_order"
+        )
 
     order = order_resp["order"]
 
@@ -536,14 +625,55 @@ async def _handle_product_issue(
         T.get_customer, email,
         ticket_id=tid, step_name="get_customer", confidence=conf, audit=audit,
         reason="Verify identity to prevent fraudulent product-defect claims.")
+    if cust_resp["status"] == "error":
+        summary = (
+            f"UNKNOWN CUSTOMER [{tid}]\n"
+            f"Email   : {email}\n"
+            f"Subject : {ticket['subject']}\n"
+            f"Customer email not found. Cannot evaluate product defect without identity verification."
+        )
+        return "escalated", await _run_escalate(
+            tid, summary,
+            audit_reason="Customer email not found. Cannot verify ownership for defective product claim.",
+            escalation_reason="missing critical data",
+            confidence=conf, audit=audit, step_name="escalate.unknown_customer"
+        )
+
     customer = cust_resp["customer"]
+
+    body_lower = ticket.get("body", "").lower()
+    if "replacement" in body_lower or "exchange" in body_lower:
+        summary = (
+            f"REPLACEMENT REQUEST [{tid}]\n"
+            f"Customer : {customer['name']} ({email})\n"
+            f"Subject  : {ticket['subject']}\n"
+            f"Customer explicitly requested a REPLACEMENT rather than a refund."
+        )
+        return "escalated", await _run_escalate(
+            tid, summary,
+            audit_reason="Customer requested replacement. Replacement fulfillment requires manual intervention.",
+            escalation_reason="manual fulfillment required",
+            confidence=conf, audit=audit, step_name="escalate.replacement_request"
+        )
 
     if not order_id:
         _record_decision(audit, ticket_id=tid, step_name="decide.missing_order_id", confidence=conf,
-            reason="Order ID is missing. Cannot establish product, amount, and date for policy evaluation.")
-        msg, val = _get_missing_order_msg(customer['name'], "product_issue")
-        await _invoke_tool(T.send_reply, tid, msg, ticket_id=tid, step_name="send_reply.missing_order", confidence=conf, audit=audit, reason="Ask customer for missing order ID.")
-        return "resolved", val
+            reason="Order ID is missing. Attempting autonomous lookup before escalating.")
+        order_id = await _get_active_order(email, tid, conf, audit)
+
+    if not order_id:
+        summary = (
+            f"MISSING ORDER ID [{tid}]\n"
+            f"Customer : {customer['name']} ({email})\n"
+            f"Subject  : {ticket['subject']}\n"
+            f"Product issue reported but no order ID was provided or found."
+        )
+        return "escalated", await _run_escalate(
+            tid, summary,
+            audit_reason="Product defect reported without order ID and none in history. Cannot verify purchase.",
+            escalation_reason="missing critical data",
+            confidence=conf, audit=audit, step_name="escalate.missing_order_id"
+        )
 
     _record_decision(audit, ticket_id=tid, step_name="decide.get_order", confidence=conf,
         reason=(f"Customer {customer['name']} (tier={customer['tier']}) confirmed. "
@@ -554,9 +684,18 @@ async def _handle_product_issue(
         reason=f"Retrieve order {order_id} to confirm it contains the reported defective item.")
 
     if order_resp.get("status") == "error":
-        msg = f"Dear {customer['name']},\n\nWe couldn't locate your order. Please verify your order ID.\n\nSupport Team"
-        await _invoke_tool(T.send_reply, tid, msg, ticket_id=tid, step_name="send_reply.invalid_order", confidence=conf, audit=audit, reason="Order not found. Requesting verification.")
-        return "resolved", "We couldn't locate your order. Please verify your order ID."
+        summary = (
+            f"INVALID ORDER ID [{tid}]\n"
+            f"Customer : {customer['name']} ({email})\n"
+            f"Order ID : {order_id}\n"
+            f"The order ID provided for this request was not found in the database. Manual verification required."
+        )
+        return "escalated", await _run_escalate(
+            tid, summary,
+            audit_reason=f"Order {order_id} not found. Cannot verify eligibility/status.",
+            escalation_reason="missing critical data",
+            confidence=conf, audit=audit, step_name="escalate.invalid_order"
+        )
 
     order = order_resp["order"]
 
@@ -633,7 +772,13 @@ async def _handle_general(
         T.get_customer, email,
         ticket_id=tid, step_name="get_customer", confidence=conf, audit=audit,
         reason="Verify customer exists and retrieve name for a personalised reply.")
-    customer = cust_resp["customer"]
+
+    if cust_resp["status"] == "error":
+        _record_decision(audit, ticket_id=tid, step_name="warn.unknown_customer", confidence=conf,
+            reason="Customer email not found. Proceeding with generic greeting.")
+        customer = cust_resp["customer"]
+    else:
+        customer = cust_resp["customer"]
 
     order_context = ""
     if order_id:
@@ -670,7 +815,21 @@ async def _handle_general(
     await _invoke_tool(
         T.send_reply, tid, msg,
         ticket_id=tid, step_name="send_reply.general", confidence=conf, audit=audit,
-        reason="Send personalised acknowledgement so the customer knows their inquiry is received.")
+        reason="Send personalised acknowledgement with knowledge base context.")
+
+    # Try to find a policy answer if it was a general question
+    body_lower = ticket.get("body", "").lower()
+    if "return policy" in body_lower or "exchange" in body_lower or "shipping times" in body_lower:
+        kb = T.get_knowledge_base()
+        _record_decision(audit, ticket_id=tid, step_name="decide.kb_search", confidence=conf,
+            reason="Detected policy question. Consulting knowledge base for automated answer.")
+        
+        policy_msg = f"Dear {customer['name']},\n\nBased on our policy:\n\n{kb}\n\nHope this helps!\n\nSupport Team"
+        await _invoke_tool(
+            T.send_reply, tid, policy_msg,
+            ticket_id=tid, step_name="send_reply.policy_answer", confidence=conf, audit=audit,
+            reason="Provided automated policy answer from knowledge base.")
+
     return "resolved", "General inquiry acknowledged and replied"
 
 

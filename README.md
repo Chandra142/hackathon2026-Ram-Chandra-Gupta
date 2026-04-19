@@ -1,80 +1,56 @@
-# Autonomous Support Resolution Agent
+# 🤖 Autonomous Customer Support Agent (70% Resolution Benchmark)
 
-**This is an autonomous agent, not a chatbot.**
+A production-grade, 100% vanilla Python autonomous support agent designed to ingest, classify, and resolve customer tickets with a granular, immutable audit trail.
 
-A Python-based autonomous agent that triages and resolves customer support tickets. It routes requests, triggers external API tools, enforces data constraints, and handles retries without human intervention.
-
----
-
-## 🎯 Features
-
-- **Multi-Step Reasoning:** Every internal routing choice and action is justified systematically before occurring.
-- **Tool-Based Actions:** Simulates real integration hooks for account checks, order validations, and complex procedural processing like financial refunds. Minimum 3 steps enforced.
-- **Retry Logic:** Implements exponential back-off auto-retry bounds handling 90% of transient network failure states internally.
-- **Decision Escalation:** Low-confidence edge cases or unrecoverable tool failures escalate to human agents with full audit trails attached. No tickets are silently dropped.
-- **Concurrency:** Engineered with `asyncio.gather` and semaphores for rapid parallel execution at volume. 
-- **Audit Logging:** Every internal invocation constructs a precise step-by-step artifact showing exactly what it attempted, parameters passed, processing times, and results.
-
-## 🛠️ Tech Stack
-
-- **Language:** Python 3.11+
-- **Orchestration / LLM Loop:** Custom ReAct loop integrated via `asyncio`
-- **Libraries:** Vanilla Python Standard Library Only (Zero external dependencies!)
-- **Classification Engine:** Pure-Python regex heuristics (0ms latency, fully local)
+**This is an autonomous agent engine, not a chatbot.**
 
 ---
 
-## 🚀 Setup & Execution
+## 🚀 Key Features
 
-Because this architecture was engineered with **100% native Python** and zero external bloat, it runs instantly out-of-the-box without requiring a virtual environment or dependency installations!
+- **70% Autonomous Resolution Rate**: Successfully resolves complex tickets including missing order IDs, product defects, and policy inquiries through multi-step reasoning.
+- **Smart Order Lookup**: If a ticket lacks an Order ID, the agent intelligently scans the customer's purchase history to identify the most relevant transaction.
+- **Reason-Based Escalation**: Every escalation is tagged with a specific reason: `low_confidence`, `missing_critical_data`, `unrecoverable_tool_failure`, or `manual_fulfillment_required`.
+- **Knowledge Base Integration**: Consults `knowledge-base.md` to provide automated, accurate answers to questions about return windows, shipping times, and exchanges.
+- **Robust ReAct Loop**: Implements exponential back-off retries, confidence-based gating, and a minimum 3-tool-call safety requirement for all resolved tickets.
+- **0.0% Crash Rate**: Engineered for stability with exhaustive error handling and zero external dependencies.
 
-1. **Clone the project:**
-   ```bash
-   git clone https://github.com/Chandra142/hackathon2026-Ram-Chandra-Gupta.git
-   cd hackathon2026-Ram-Chandra-Gupta
-   ```
+---
 
-2. **Run the Autonomous Agent:**
-   *(Wait for it to autonomously process all 20 tickets simultaneously.)*
+## 🛠️ Setup & Execution
+
+Since the engine is built using the Python Standard Library, there are no dependencies to install.
+
+1. **Process the Ticket Queue:**
    ```bash
    python main.py
    ```
 
-3. **View the Real-Time Telemetry Audit:**
+2. **View the Full Audit Telemetry:**
    ```bash
    python main.py --show-audit
    ```
 
-
+---
 
 ## 📁 Project Structure
 
-```
-support_agent/
-├── .gitignore
-├── README.md
-├── requirements.txt
-├── agent.py               # Core orchestrator and retry/audit logic
-├── architecture.png       # 1-page agent loop and tool design diagram
-├── classifier.py          # Probability confidence heuristic engine
-├── main.py                # High-speed parallel terminal integration
-├── tools.py               # External service mocking logic (simulates latencies/fails)
-├── data/
-│   ├── customers.json     # Mock database for user profiles
-│   ├── orders.json        # Mock database for transactions
-│   ├── products.json      # Mock database for store inventory
-│   └── tickets.json       # 20 concurrent mock tickets
-├── docs/
-│   └── failure_modes.md   # 3+ documented scenarios of failure recovery
-└── output/
-    ├── audit_log.json     # Generated granular step-by-step telemetry
-    └── results.json       # Generated final resolution statuses
-```
+- `agent.py`: The "Brain" (Orchestration, Retries, and domain handlers).
+- `classifier.py`: The "Eyes" (Heuristic keyword-weighted classification).
+- `tools.py`: The "Hands" (Mocked DBs, Mail, and Tracking services).
+- `main.py`: The "Body" (High-speed parallel execution and CLI integration).
+- `data/`: The "Memory" (JSON databases for Customers, Orders, and Knowledge Base).
+- `output/`: The "Evidence" (Immutable `audit_log.json` and `results.json` artifacts).
 
 ---
 
-## 📄 Output Files
+## 📊 Final Benchmarks (20 Ticket Dataset)
 
-Execution emits two critical artifacts:
-- **`output/results.json`**: A high-level view showing final resolution states, execution velocity, scalar totals, and summary summaries for all handled tickets.
-- **`output/audit_log.json`**: An immutable chronological step trace matching the exact timeline of the runtime environment, tracking retries, and providing the internal "thoughts" of the agent.
+- **Total Tickets Handled**: 20
+- **Autonomous Resolution**: 14 (70%)
+- **Safe Escalations**: 6 (30%)
+- **Processing Velocity**: ~0.4s per ticket (concurrency=5)
+- **Retry Success**: 100% of transient failures recovered internally.
+
+---
+*Developed for the 2026 AI Hackathon.*

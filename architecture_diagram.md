@@ -2,29 +2,39 @@
 
 ```mermaid
 graph TD
-    A[Mock Tickets .json] -->|Loaded in batch| B(Concurrent Main CLI Worker)
-    B -->|Asyncio Gather| C{Autonomous Agent Loop}
+    A[Mock Tickets .json] -->|Batch Load| B(Main Async Worker)
+    B -->|Asyncio.gather| C{Autonomous Agent Loop}
     
-    C -->|Raw Subject & Body| D[Heuristic Regex Classifier]
-    D -->|Confidence Score & Category| C
+    C -->|Classify| D[Weighted Heuristic Engine]
+    D -->|Confidence & Type| C
     
-    C -- Tool Calling --> E{Tool Executor & Simulator}
-    E --> F[get_customer_profile Tool]
-    E --> G[get_order_status Tool]
-    E --> H[check_refund_eligibility Tool]
-    E --> I[send_customer_reply Tool]
+    C -- Tool Orchestration --> E{Tool Executor}
+    E --> F[get_customer]
+    E --> G[get_order]
+    E --> H[list_customer_orders]
+    E --> I[check_eligibility]
+    E --> J[issue_refund]
+    E --> K[get_knowledge_base]
+    E --> L[send_reply]
     
-    F & G & H & I -- Return Fallback / Status --> J{Retry & Error Handler}
-    J -->|Valid Data| C
-    J -->|Network Timeout / Server Error| K[Exponential Backoff Retry]
-    K -- Retries Exhausted --> L[Mark Tool as Unrecoverable]
-    L --> C
+    F & G & H & I & J & K & L -->|Error Check| M{Retry Logic}
+    M -->|Retriable Fail| N[Exponential Backoff]
+    N --> E
+    M -->|Success / Unrecoverable| C
     
-    C -- Guardrail Evaluation --> M{Confidence & Action Gate}
-    M -- Score >= 0.6 & Uses >= 3 Tools --> N[Status: RESOLVED]
-    M -- Score < 0.6 or Tool Failure --> O[Status: ESCALATED]
-    M -- Unexpected Framework Error --> P[Status: FAILED]
+    C -- Logic Branching --> O{Branch Handler}
+    O -->|Missing Order ID| P[Smart Order Lookup]
+    P -->|Found| G
+    O -->|Policy Inquiry| Q[Knowledge Base Search]
+    Q --> L
+    O -->|Criteria Met| R[Status: RESOLVED]
     
-    N & O & P --> Q[Emit audit_log.json & results.json]
-    Q --> R((CLI Summary Table Output))
+    C -- Guardrails --> S{Escalation Gate}
+    S -->|Reason: low_confidence| T[Status: ESCALATED]
+    S -->|Reason: missing_critical_data| T
+    S -->|Reason: unrecoverable_failure| T
+    S -->|Reason: manual_fulfillment| T
+    
+    R & T --> U[Emit Final Audit Log & Results.json]
+    U --> V((CLI Real-time Output))
 ```

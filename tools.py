@@ -105,6 +105,26 @@ async def get_customer(email: str) -> dict[str, Any]:
     return {"status": "ok", "customer": customer}
 
 
+async def list_customer_orders(email: str) -> dict[str, Any]:
+    """Return a list of all orders associated with the given customer email."""
+    await _latency(0.2, 0.2)
+    if _transient_fail(0.10):
+        raise ToolTimeout(f"list_customer_orders timed out for {email!r}")
+
+    _, orders, _ = get_data()
+    customer_orders = [
+        {"order_id": oid, **o}
+        for oid, o in orders.items()
+        if o["customer_email"] == email
+    ]
+
+    return {
+        "status": "ok",
+        "email": email,
+        "orders": sorted(customer_orders, key=lambda x: x["order_date"], reverse=True)
+    }
+
+
 async def get_order(order_id: str) -> dict[str, Any]:
     """Return order details for the given order ID."""
     await _latency(0.2, 0.3)
